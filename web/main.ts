@@ -1,11 +1,13 @@
-// Browser shell: fixed-step loop, keyboard and gamepad input, menus.
+// Browser shell: fixed-step loop, keyboard, gamepad and touch input, menus.
 import { isMuted, menuBlip, playEvents, setMuted, unlockAudio } from '../src/audio/sfx.ts';
 import { drawText } from '../src/render/font.ts';
-import { P_COLORS, VIEW_H, VIEW_W, absorbEvents, createView, kitFor, render, type View } from '../src/render/view.ts';
+import { P_COLORS, UI, VIEW_H, VIEW_W, absorbEvents, createView, kitFor, render, type View } from '../src/render/view.ts';
 import { drawSkater } from '../src/render/sprites.ts';
 import { step } from '../src/sim/game.ts';
 import { NO_INPUT, newGame, type GameState, type Input } from '../src/sim/state.ts';
 import { TEAMS } from '../src/sim/teams.ts';
+import { detectDevice } from './device.ts';
+import { setTouchMode, setupTouch, takePause, takeTaps, touchInput } from './touch.ts';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -13,14 +15,28 @@ canvas.width = VIEW_W;
 canvas.height = VIEW_H;
 ctx.imageSmoothingEnabled = false;
 
+// Phones and tablets get on-screen controls. A touchscreen laptop starts with keyboard help and
+// switches over the first time someone touches the screen.
+const device = detectDevice();
+let touchMode = device !== 'desktop';
+document.body.dataset.device = device;
+
+function useTouch(on: boolean) {
+  touchMode = on;
+  document.body.toggleAttribute('data-touch', on);
+  UI.prompt = on ? 'TAP TO CONTINUE' : 'PRESS ENTER';
+  fit();
+}
+
 function fit() {
   const s = Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H);
-  const scale = s >= 1 ? Math.floor(s) : s;
+  // Whole-number scaling keeps pixels even on a monitor; on a small touch screen every bit of
+  // size counts more.
+  const scale = s >= 1 && !touchMode ? Math.floor(s) : s;
   canvas.style.width = `${VIEW_W * scale}px`;
   canvas.style.height = `${VIEW_H * scale}px`;
 }
 addEventListener('resize', fit);
-fit();
 
 // ---- Input ---------------------------------------------------------------------------
 
@@ -34,10 +50,12 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => down.delete(e.code));
 addEventListener('blur', () => down.clear());
-canvas.addEventListener('pointerdown', () => {
-  unlockAudio();
-  canvas.focus();
+addEventListener('pointerdown', () => unlockAudio(), { capture: true });
+canvas.addEventListener('pointerdown', () => canvas.focus());
+setupTouch(canvas, () => {
+  if (!touchMode) useTouch(true);
 });
+useTouch(touchMode);
 
 interface KeyMap {
   up: string[];
@@ -98,8 +116,9 @@ function merge(a: Input, b: Input | null): Input {
 }
 
 function playerInput(player: number, players: number): Input {
-  if (players === 1) return merge(keyInput(SOLO), padInput(0));
-  return merge(keyInput(DUO[player]), padInput(player));
+  const base = players === 1 ? merge(keyInput(SOLO), padInput(0)) : merge(keyInput(DUO[player]), padInput(player));
+  // The touch controls belong to player 1; a second player needs a keyboard or gamepad.
+  return player === 0 && touchMode ? merge(base, touchInput()) : base;
 }
 
 // Menu edges from keyboard or the first gamepad.
@@ -200,14 +219,16 @@ function simFrame() {
   if (screen === 'game') playEvents(game.events);
 }
 
-function updateTitle(keys: ReturnType<typeof menuKeys>) {
+type Tap = { x: number; y: number };
+
+function updateTitle(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
   simFrame();
   if (game.phase === 'final' && ++demoOver > 300) {
     demoOver = 0;
     game = demoGame();
     view = createView();
   }
-  if (keys.ok) {
+  if (keys.ok || taps.length) {
     menuBlip();
     screen = 'setup';
     menuRow = 0;
@@ -215,22 +236,41 @@ function updateTitle(keys: ReturnType<typeof menuKeys>) {
 }
 
 const SETUP_ROWS = 8;
-function updateSetup(keys: ReturnType<typeof menuKeys>) {
+const SETUP_TOP = 30;
+const SETUP_ROW_H = 13;
+const VALUE_X = 82;
+const VALUE_MID = 158;
+
+function changeSetting(row: number, d: number) {
+  const wrap = (v: number, n: number) => (v + d + n) % n;
+  switch (row) {
+    case 0: setup.mode = wrap(setup.mode, 3); break;
+    case 1: setup.home = wrap(setup.home, TEAMS.length); break;
+    case 2: setup.away = wrap(setup.away, TEAMS.length); break;
+    case 3: setup.cpu = wrap(setup.cpu, 3); break;
+    case 4: setup.period = wrap(setup.period, PERIODS.length); break;
+    case 5: setup.scraps = !setup.scraps; break;
+    case 6: setup.surge = !setup.surge; break;
+  }
+}
+
+function updateSetup(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
   if (keys.up) menuRow = (menuRow + SETUP_ROWS - 1) % SETUP_ROWS;
   if (keys.down) menuRow = (menuRow + 1) % SETUP_ROWS;
   const d = keys.left ? -1 : keys.right ? 1 : 0;
   if (keys.up || keys.down || d) menuBlip(d >= 0);
-  const wrap = (v: number, n: number) => (v + d + n) % n;
-  if (d) {
-    switch (menuRow) {
-      case 0: setup.mode = wrap(setup.mode, 3); break;
-      case 1: setup.home = wrap(setup.home, TEAMS.length); break;
-      case 2: setup.away = wrap(setup.away, TEAMS.length); break;
-      case 3: setup.cpu = wrap(setup.cpu, 3); break;
-      case 4: setup.period = wrap(setup.period, PERIODS.length); break;
-      case 5: setup.scraps = !setup.scraps; break;
-      case 6: setup.surge = !setup.surge; break;
+  if (d) changeSetting(menuRow, d);
+  // Tapping a row selects it; tapping the left or right half of its value steps it.
+  for (const t of taps) {
+    const row = Math.floor((t.y - SETUP_TOP + 3) / SETUP_ROW_H);
+    if (row < 0 || row >= SETUP_ROWS || t.x < 10 || t.x > 240) continue;
+    menuRow = row;
+    if (row === SETUP_ROWS - 1) {
+      startGame();
+      return;
     }
+    if (t.x >= VALUE_X) changeSetting(row, t.x < VALUE_MID ? -1 : 1);
+    menuBlip(t.x >= VALUE_MID);
   }
   if (keys.ok) {
     if (menuRow === 7 || menuRow === 0) startGame();
@@ -244,17 +284,18 @@ function updateSetup(keys: ReturnType<typeof menuKeys>) {
   }
 }
 
-function updateGame(keys: ReturnType<typeof menuKeys>) {
+function updateGame(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
   if (pressed.has('KeyM')) setMuted(!isMuted());
+  const pause = takePause();
   if (game.phase === 'final') {
     simFrame();
-    if (keys.ok) {
+    if (keys.ok || taps.length) {
       screen = 'setup';
       menuRow = 7;
     }
     return;
   }
-  if (keys.pause) {
+  if (keys.pause || pause) {
     screen = 'paused';
     pauseRow = 0;
     return;
@@ -262,18 +303,34 @@ function updateGame(keys: ReturnType<typeof menuKeys>) {
   simFrame();
 }
 
-function updatePaused(keys: ReturnType<typeof menuKeys>) {
+const PAUSE_ROWS = 3; // resume, sound, quit
+const PAUSE_TOP = 100;
+const PAUSE_ROW_H = 13;
+
+function choosePause(row: number) {
+  if (row === 0) screen = 'game';
+  else if (row === 1) setMuted(!isMuted());
+  else {
+    screen = 'setup';
+    menuRow = 7;
+  }
+}
+
+function updatePaused(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
   if (pressed.has('KeyM')) setMuted(!isMuted());
-  if (keys.up || keys.down) pauseRow = 1 - pauseRow;
-  if (keys.pause) {
+  if (keys.up) pauseRow = (pauseRow + PAUSE_ROWS - 1) % PAUSE_ROWS;
+  if (keys.down) pauseRow = (pauseRow + 1) % PAUSE_ROWS;
+  if (keys.pause || takePause()) {
     screen = 'game';
     return;
   }
-  if (keys.ok) {
-    if (pauseRow === 0) screen = 'game';
-    else {
-      screen = 'setup';
-      menuRow = 7;
+  if (keys.ok) choosePause(pauseRow);
+  for (const t of taps) {
+    const row = Math.floor((t.y - PAUSE_TOP + 3) / PAUSE_ROW_H);
+    if (row >= 0 && row < PAUSE_ROWS && Math.abs(t.x - VIEW_W / 2) < 80) {
+      pauseRow = row;
+      choosePause(row);
+      return;
     }
   }
 }
@@ -295,7 +352,7 @@ function drawTitle() {
   drawText(ctx, 'RINK', VIEW_W / 2, 34, '#ffffff', 5, 'center', '#1a3a7a');
   drawText(ctx, 'RUMBLE', VIEW_W / 2, 76, '#ff6a3a', 5, 'center', '#5a1a0a');
   drawText(ctx, '3-ON-3 ARCADE HOCKEY', VIEW_W / 2, 124, '#cfe0ff', 1, 'center');
-  if ((tick >> 5) & 1) drawText(ctx, 'PRESS ENTER', VIEW_W / 2, 156, '#ffe14a', 2, 'center', '#000');
+  if ((tick >> 5) & 1) drawText(ctx, touchMode ? 'TAP TO START' : 'PRESS ENTER', VIEW_W / 2, 156, '#ffe14a', 2, 'center', '#000');
   drawText(ctx, 'AN ORIGINAL GAME', VIEW_W / 2, 200, '#7a7a96', 1, 'center');
 }
 
@@ -326,14 +383,14 @@ function drawSetup() {
     ['', 'START GAME'],
   ];
   rows.forEach(([label, value], i) => {
-    const y = 30 + i * 13;
+    const y = SETUP_TOP + i * SETUP_ROW_H;
     const sel = i === menuRow;
     if (sel) {
       ctx.fillStyle = '#26264a';
       ctx.fillRect(14, y - 3, 220, 13);
     }
     drawText(ctx, label, 20, y, sel ? '#ffe14a' : '#9fb0c8');
-    drawText(ctx, i === 7 ? value : `< ${value} >`, i === 7 ? 124 : 82, y, sel ? '#ffffff' : '#cfd8e8', 1, i === 7 ? 'center' : 'left');
+    drawText(ctx, i === 7 ? value : `< ${value} >`, i === 7 ? 124 : VALUE_X, y, sel ? '#ffffff' : '#cfd8e8', 1, i === 7 ? 'center' : 'left');
   });
 
   // Team previews with their kits and ratings.
@@ -349,6 +406,15 @@ function drawSetup() {
   }
 
   panel(8, 140, VIEW_W - 16, 70);
+  if (touchMode) {
+    drawText(ctx, 'LEFT THUMB ANYWHERE ON THE LEFT: SKATE', 16, 148, '#cfd8e8');
+    drawText(ctx, 'PASS: PASS, OR CHECK WITHOUT THE PUCK', 16, 160, '#cfd8e8');
+    drawText(ctx, 'SHOOT: TAP WRISTER, HOLD SLAPPER, OR SWITCH', 16, 172, '#cfd8e8');
+    drawText(ctx, 'SCORE: PASS ACROSS, SHOOT AS IT ARRIVES (ONE-TIMER)', 16, 184, '#8fe08f');
+    const note = setup.mode === 1 ? 'P2 NEEDS A KEYBOARD OR GAMEPAD' : 'TAP < > TO CHANGE, II TO PAUSE';
+    drawText(ctx, `${device.toUpperCase()} - ${note}`, 16, 196, '#7a7a96');
+    return;
+  }
   if (setup.mode === 1) {
     drawText(ctx, 'P1: WASD MOVE  F PASS/CHECK  G SHOOT/SWITCH', 16, 148, P_COLORS[0]);
     drawText(ctx, 'P2: ARROWS  . PASS/CHECK  / SHOOT/SWITCH', 16, 160, P_COLORS[1]);
@@ -364,12 +430,11 @@ function drawSetup() {
 
 function drawPaused() {
   render(ctx, game, view);
-  panel(VIEW_W / 2 - 80, 70, 160, 70);
+  panel(VIEW_W / 2 - 80, 70, 160, 84);
   drawText(ctx, 'PAUSED', VIEW_W / 2, 80, '#ffffff', 2, 'center');
-  ['RESUME', 'QUIT TO MENU'].forEach((t, i) => {
-    drawText(ctx, (i === pauseRow ? '> ' : '  ') + t, VIEW_W / 2 - 40, 104 + i * 12, i === pauseRow ? '#ffe14a' : '#cfd8e8');
+  ['RESUME', isMuted() ? 'SOUND: OFF' : 'SOUND: ON', 'QUIT TO MENU'].forEach((t, i) => {
+    drawText(ctx, (i === pauseRow ? '> ' : '  ') + t, VIEW_W / 2 - 42, PAUSE_TOP + i * PAUSE_ROW_H, i === pauseRow ? '#ffe14a' : '#cfd8e8');
   });
-  drawText(ctx, isMuted() ? 'SOUND OFF (M)' : 'SOUND ON (M)', VIEW_W / 2, 130, '#7a7a96', 1, 'center');
 }
 
 // ---- Loop ----------------------------------------------------------------------------
@@ -387,13 +452,15 @@ function frame(now: number) {
     steps++;
     tick++;
     const keys = menuKeys();
+    const taps = takeTaps(); // also lets a mouse click its way through the menus
     switch (screen) {
-      case 'title': updateTitle(keys); break;
-      case 'setup': updateSetup(keys); break;
-      case 'game': updateGame(keys); break;
-      case 'paused': updatePaused(keys); break;
+      case 'title': updateTitle(keys, taps); break;
+      case 'setup': updateSetup(keys, taps); break;
+      case 'game': updateGame(keys, taps); break;
+      case 'paused': updatePaused(keys, taps); break;
     }
     pressed.clear();
+    setTouchMode(!touchMode ? 'off' : screen === 'game' && game.phase !== 'final' ? 'play' : 'menu');
   }
   if (steps > 0) {
     switch (screen) {
@@ -417,5 +484,7 @@ canvas.focus();
   get screen() {
     return screen;
   },
+  device,
+  touch: touchInput,
   NO_INPUT,
 };

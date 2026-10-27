@@ -31,6 +31,14 @@ Every push to `main` is tested, built and published to GitHub Pages by
 Gamepads work too: stick or d-pad to skate, A to pass, B or X to shoot, Start to pause. Hold the
 stick up or down as you shoot to pick a side of the net.
 
+**Phones and tablets** get on-screen controls automatically: put your left thumb anywhere on the
+left half to skate (the stick appears where you touch), and use the PASS and SHOOT buttons on the
+right; II pauses. Menus work by tapping, including the left or right side of a setting to change
+it. Phones play sideways. The game decides between phone, tablet and desktop from the browser
+(`web/device.ts`); add `?device=phone`, `?device=tablet` or `?device=desktop` to the address to
+override it. A touchscreen laptop switches to touch controls the first time the screen is touched.
+In two-player mode the touch controls belong to player 1.
+
 **How to score:** goalies stop shots that hit them, so make them move. Pass across the slot and
 press shoot as the pass arrives for a one-timer, follow your shots for rebounds, and get bodies in
 front of the goalie. Long slap shots at a goalie who is set rarely go in. In a scrap: pass jabs, hold-and-release shoot throws a
@@ -44,7 +52,8 @@ when the CPU shoots (up/down to slide, pass to dive).
   clubs in `teams.ts`.
 - `src/render/` canvas drawing (pixel font, procedural sprites, rink art, HUD and overlays).
 - `src/audio/sfx.ts` synthesised sound driven by simulation events.
-- `web/main.ts` loop, input and menus. `tools/serve.ts` static server.
+- `web/main.ts` loop, input and menus; `web/touch.ts` on-screen controls; `web/device.ts` phone,
+  tablet or desktop detection. `tools/serve.ts` static server.
 - `tools/sim.ts` headless games for tuning: `npm run sim -- 120`, or with a scripted human
   player from `tools/bots.ts`: `npm run sim -- 40 1 180 --human playmaker`.
 - `test/` physics, scraps, shootout rules, controls, determinism and complete games: `npm test`.

@@ -94,6 +94,14 @@ ladder, and the simulator keeps every club's win rate between about 35 and 65 pe
 In the shootout, a human player shoots for their own team and controls the goalie when the other
 team shoots: up/down to slide, the pass button to dive.
 
+## Touch play
+
+Phones and tablets show a floating stick for the left thumb (it appears wherever the thumb lands
+on the left half), PASS and SHOOT buttons for the right, and a pause button. Menus are tapped.
+Phones must be held sideways; a tablet held upright shows the rink at the top with room for thumbs
+below. Device detection uses the user agent first (iPadOS is told apart from a Mac by its touch
+points), then a coarse pointer plus the screen's short side (under 600 CSS pixels is a phone).
+
 ## Architecture
 
 The same split the remake projects use, minus the oracle:

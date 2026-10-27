@@ -15,6 +15,9 @@ const PLAY_H = VIEW_H - HUD_H;
 
 export const P_COLORS = ['#ffe14a', '#4ae8ff'];
 
+// Wording that depends on the input device, set by the shell.
+export const UI = { prompt: 'PRESS ENTER' };
+
 interface Banner {
   text: string;
   sub: string;
@@ -283,7 +286,7 @@ function drawSummary(ctx: CanvasRenderingContext2D, s: GameState, title: string)
   if (s.phase === 'final') {
     const w2 = s.teams[s.winner].def;
     drawText(ctx, `${w2.name} WIN${s.shootout ? ' IN SHOOTOUT' : ''}`, VIEW_W / 2, y + 74, '#ffe14a', 1, 'center');
-    drawText(ctx, 'PRESS ENTER', VIEW_W / 2, y + 86, (s.frame >> 4) & 1 ? '#ffffff' : '#7a7a90', 1, 'center');
+    drawText(ctx, UI.prompt, VIEW_W / 2, y + 86, (s.frame >> 4) & 1 ? '#ffffff' : '#7a7a90', 1, 'center');
   } else if (s.options.humans[0] || s.options.humans[1]) {
     drawText(ctx, 'TIP: ' + TIPS[(s.period - 1 + Math.abs(s.options.seed)) % TIPS.length], VIEW_W / 2, y + 80, '#8fe08f', 1, 'center');
   }

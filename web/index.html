@@ -2,18 +2,78 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#07070f">
 <title>Rink Rumble</title>
 <style>
-  :root { --bg: #07070f; --fg: #ccd; }
+  :root {
+    --bg: #07070f; --fg: #ccd;
+    --stick: clamp(96px, 26vmin, 180px);
+    --btn: clamp(64px, 17vmin, 120px);
+    --edge: max(14px, 4vmin, env(safe-area-inset-bottom));
+  }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; overflow: hidden; }
+  body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  body[data-touch] { touch-action: none; }
   #wrap { display: flex; align-items: center; justify-content: center; height: 100%; }
   canvas { display: block; outline: none; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
   #msg { position: fixed; bottom: 8px; left: 0; right: 0; text-align: center; opacity: .7; }
+
+  /* A tablet held upright: picture at the top, thumbs below it. */
+  @media (orientation: portrait) {
+    body[data-touch] #wrap { align-items: flex-start; padding-top: max(6vh, env(safe-area-inset-top)); box-sizing: border-box; }
+  }
+
+  /* On-screen controls (web/touch.ts). */
+  #touch { position: fixed; inset: 0; pointer-events: none; }
+  #touch > * { display: none; }
+  #touch[data-mode="play"] > * { display: flex; pointer-events: auto; }
+  #stick-zone { position: absolute; left: 0; top: 18%; width: 50%; bottom: 0; }
+  #stick-base {
+    position: absolute; width: var(--stick); height: var(--stick);
+    margin: calc(var(--stick) / -2) 0 0 calc(var(--stick) / -2);
+    left: calc(var(--edge) + var(--stick) / 2); top: calc(100% - var(--edge) - var(--stick) / 2);
+    border-radius: 50%; background: rgba(255, 255, 255, .10); border: 2px solid rgba(255, 255, 255, .35);
+    box-sizing: border-box; opacity: .55; pointer-events: none !important;
+  }
+  #stick-base.active { opacity: 1; }
+  #stick-knob {
+    position: absolute; left: 50%; top: 50%; width: 44%; height: 44%; margin: -22% 0 0 -22%;
+    border-radius: 50%; background: rgba(255, 255, 255, .55);
+  }
+  .tbtn {
+    position: absolute; width: var(--btn); height: var(--btn); border-radius: 50%;
+    align-items: center; justify-content: center; box-sizing: border-box;
+    font: 700 clamp(12px, 2.6vmin, 18px) system-ui, sans-serif; color: #fff; letter-spacing: .04em;
+    text-shadow: 0 1px 2px #000;
+  }
+  .tbtn.held { filter: brightness(1.7); transform: scale(.93); }
+  #btn-shoot { right: var(--edge); bottom: calc(var(--edge) + var(--btn) * .6); background: rgba(255, 106, 58, .5); border: 2px solid rgba(255, 170, 130, .85); }
+  #btn-pass { right: calc(var(--edge) + var(--btn) * 1.12); bottom: var(--edge); background: rgba(74, 150, 255, .45); border: 2px solid rgba(150, 200, 255, .85); }
+  #btn-pause {
+    position: absolute; right: 10px; top: 20%; width: 44px; height: 44px; border-radius: 10px;
+    align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); color: #fff;
+    font: 700 16px system-ui, sans-serif; border: 1px solid rgba(255, 255, 255, .3);
+  }
+
+  /* Phones need to be on their side. */
+  #rotate {
+    display: none; position: fixed; inset: 0; z-index: 10; background: var(--bg); color: #fff;
+    flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+    font: 700 20px system-ui, sans-serif; padding: 24px;
+  }
+  #rotate span { font-size: 56px; }
+  @media (orientation: portrait) {
+    body[data-device="phone"] #rotate { display: flex; }
+  }
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="stage" width="384" height="216" tabindex="0"></canvas></div>
+<div id="rotate"><span>&#x21bb;</span>Turn your phone sideways to play</div>
 <div id="msg">Loading…</div>
 <script type="module" src="build/main.js"></script>
 </body>
