@@ -5,7 +5,7 @@ import { P_COLORS, UI, VIEW_H, VIEW_W, absorbEvents, createView, kitFor, render,
 import { drawSkater } from '../src/render/sprites.ts';
 import { step } from '../src/sim/game.ts';
 import { NO_INPUT, newGame, type GameState, type Input } from '../src/sim/state.ts';
-import { TEAMS } from '../src/sim/teams.ts';
+import { DIVISIONS, TEAMS, teamIndex } from '../src/sim/teams.ts';
 import { detectDevice } from './device.ts';
 import { setTouchMode, setupTouch, takePause, takeTaps, touchInput } from './touch.ts';
 
@@ -16,10 +16,13 @@ canvas.height = VIEW_H;
 ctx.imageSmoothingEnabled = false;
 
 // Phones and tablets get on-screen controls. A touchscreen laptop starts with keyboard help and
-// switches over the first time someone touches the screen.
+// switches over the first time someone touches the screen. The CONTROLS setting can force either.
 const device = detectDevice();
 let touchMode = device !== 'desktop';
+let touchSeen = false;
 document.body.dataset.device = device;
+declare const BUILD_ID: string; // set by the deploy workflow
+const build = typeof BUILD_ID === 'string' ? BUILD_ID : 'DEV';
 
 function useTouch(on: boolean) {
   touchMode = on;
@@ -53,9 +56,9 @@ addEventListener('blur', () => down.clear());
 addEventListener('pointerdown', () => unlockAudio(), { capture: true });
 canvas.addEventListener('pointerdown', () => canvas.focus());
 setupTouch(canvas, () => {
-  if (!touchMode) useTouch(true);
+  touchSeen = true;
+  applyControls();
 });
-useTouch(touchMode);
 
 interface KeyMap {
   up: string[];
@@ -153,23 +156,42 @@ function menuKeys() {
 
 interface Setup {
   mode: number; // 0 one player, 1 two players, 2 CPU vs CPU
-  home: number;
+  division: number; // index into DIVISIONS
+  home: number; // team within the division
   away: number;
   cpu: number;
   period: number; // index into PERIODS
   scraps: boolean;
   surge: boolean;
+  controls: number; // index into CONTROLS
 }
+
+const CONTROLS = ['AUTO', 'TOUCH', 'KEYS / PAD'];
 
 const PERIODS = [2, 3, 5];
 const MODES = ['1 PLAYER VS CPU', '2 PLAYERS', 'CPU VS CPU'];
 const LEVELS = ['ROOKIE', 'PRO', 'ALL-STAR'];
 
-let setup: Setup = { mode: 0, home: 0, away: 1, cpu: 1, period: 1, scraps: true, surge: true };
+let setup: Setup = { mode: 0, division: 0, home: 0, away: 1, cpu: 1, period: 1, scraps: true, surge: true, controls: 0 };
 try {
   const saved = localStorage.getItem('rinkrumble.setup');
   if (saved) setup = { ...setup, ...JSON.parse(saved) };
 } catch {}
+// A saved choice may point at a division or team that no longer exists.
+if (!(setup.division >= 0 && setup.division < DIVISIONS.length)) setup.division = 0;
+if (!(setup.home >= 0 && setup.home < divTeams().length)) setup.home = 0;
+if (!(setup.away >= 0 && setup.away < divTeams().length)) setup.away = 1 % divTeams().length;
+
+if (!(setup.controls >= 0 && setup.controls < CONTROLS.length)) setup.controls = 0;
+applyControls();
+
+function applyControls() {
+  useTouch(setup.controls === 1 || (setup.controls === 0 && (device !== 'desktop' || touchSeen)));
+}
+
+function divTeams() {
+  return DIVISIONS[setup.division].teams;
+}
 function saveSetup() {
   try {
     localStorage.setItem('rinkrumble.setup', JSON.stringify(setup));
@@ -188,16 +210,19 @@ let tick = 0;
 let demoOver = 0;
 
 function demoGame(): GameState {
-  const a = Math.floor(Math.random() * TEAMS.length);
-  const b = (a + 1 + Math.floor(Math.random() * (TEAMS.length - 1))) % TEAMS.length;
-  return newGame({ humans: [false, false], teams: [a, b], seed: (Math.random() * 1e9) | 0, periodSeconds: 120 });
+  const d = Math.floor(Math.random() * DIVISIONS.length);
+  const n = DIVISIONS[d].teams.length;
+  const a = Math.floor(Math.random() * n);
+  const b = (a + 1 + Math.floor(Math.random() * (n - 1))) % n;
+  const teams: [number, number] = [teamIndex(d, a), teamIndex(d, b)];
+  return newGame({ humans: [false, false], teams, seed: (Math.random() * 1e9) | 0, periodSeconds: 120 });
 }
 
 function startGame() {
   saveSetup();
   game = newGame({
     humans: setup.mode === 0 ? [true, false] : setup.mode === 1 ? [true, true] : [false, false],
-    teams: [setup.home, setup.away],
+    teams: [teamIndex(setup.division, setup.home), teamIndex(setup.division, setup.away)],
     cpuSkill: setup.cpu,
     periodSeconds: PERIODS[setup.period] * 60,
     fights: setup.scraps,
@@ -235,9 +260,9 @@ function updateTitle(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
   }
 }
 
-const SETUP_ROWS = 8;
-const SETUP_TOP = 30;
-const SETUP_ROW_H = 13;
+const SETUP_ROWS = 10; // the last row is START GAME
+const SETUP_TOP = 27;
+const SETUP_ROW_H = 11;
 const VALUE_X = 82;
 const VALUE_MID = 158;
 
@@ -245,12 +270,22 @@ function changeSetting(row: number, d: number) {
   const wrap = (v: number, n: number) => (v + d + n) % n;
   switch (row) {
     case 0: setup.mode = wrap(setup.mode, 3); break;
-    case 1: setup.home = wrap(setup.home, TEAMS.length); break;
-    case 2: setup.away = wrap(setup.away, TEAMS.length); break;
-    case 3: setup.cpu = wrap(setup.cpu, 3); break;
-    case 4: setup.period = wrap(setup.period, PERIODS.length); break;
-    case 5: setup.scraps = !setup.scraps; break;
-    case 6: setup.surge = !setup.surge; break;
+    case 1:
+      setup.division = wrap(setup.division, DIVISIONS.length);
+      setup.home = 0;
+      setup.away = 1 % divTeams().length;
+      break;
+    case 2: setup.home = wrap(setup.home, divTeams().length); break;
+    case 3: setup.away = wrap(setup.away, divTeams().length); break;
+    case 4: setup.cpu = wrap(setup.cpu, 3); break;
+    case 5: setup.period = wrap(setup.period, PERIODS.length); break;
+    case 6: setup.scraps = !setup.scraps; break;
+    case 7: setup.surge = !setup.surge; break;
+    case 8:
+      setup.controls = wrap(setup.controls, CONTROLS.length);
+      saveSetup();
+      applyControls();
+      break;
   }
 }
 
@@ -273,8 +308,8 @@ function updateSetup(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
     menuBlip(t.x >= VALUE_MID);
   }
   if (keys.ok) {
-    if (menuRow === 7 || menuRow === 0) startGame();
-    else menuRow = 7;
+    if (menuRow === SETUP_ROWS - 1 || menuRow === 0) startGame();
+    else menuRow = SETUP_ROWS - 1;
     menuBlip();
   }
   if (keys.back) {
@@ -291,7 +326,7 @@ function updateGame(keys: ReturnType<typeof menuKeys>, taps: Tap[]) {
     simFrame();
     if (keys.ok || taps.length) {
       screen = 'setup';
-      menuRow = 7;
+      menuRow = SETUP_ROWS - 1;
     }
     return;
   }
@@ -312,7 +347,7 @@ function choosePause(row: number) {
   else if (row === 1) setMuted(!isMuted());
   else {
     screen = 'setup';
-    menuRow = 7;
+    menuRow = SETUP_ROWS - 1;
   }
 }
 
@@ -354,6 +389,8 @@ function drawTitle() {
   drawText(ctx, '3-ON-3 ARCADE HOCKEY', VIEW_W / 2, 124, '#cfe0ff', 1, 'center');
   if ((tick >> 5) & 1) drawText(ctx, touchMode ? 'TAP TO START' : 'PRESS ENTER', VIEW_W / 2, 156, '#ffe14a', 2, 'center', '#000');
   drawText(ctx, 'AN ORIGINAL GAME', VIEW_W / 2, 200, '#7a7a96', 1, 'center');
+  // Which device the game thinks this is, and which build is running: handy when reporting a problem.
+  drawText(ctx, `${device} - ${touchMode ? 'touch' : 'keys'} - ${build}`, VIEW_W - 4, 208, '#4a4a66', 1, 'right');
 }
 
 function ratingBars(x: number, y: number, team: number) {
@@ -374,12 +411,14 @@ function drawSetup() {
   drawText(ctx, 'GAME SETUP', VIEW_W / 2, 8, '#ffffff', 2, 'center');
   const rows: [string, string][] = [
     ['MODE', MODES[setup.mode]],
-    [setup.mode === 1 ? 'P1 TEAM' : setup.mode === 0 ? 'YOUR TEAM' : 'HOME', `${TEAMS[setup.home].city} ${TEAMS[setup.home].name}`],
-    [setup.mode === 1 ? 'P2 TEAM' : setup.mode === 0 ? 'CPU TEAM' : 'AWAY', `${TEAMS[setup.away].city} ${TEAMS[setup.away].name}`],
+    ['DIVISION', DIVISIONS[setup.division].name],
+    [setup.mode === 1 ? 'P1 TEAM' : setup.mode === 0 ? 'YOUR TEAM' : 'HOME', `${divTeams()[setup.home].city} ${divTeams()[setup.home].name}`],
+    [setup.mode === 1 ? 'P2 TEAM' : setup.mode === 0 ? 'CPU TEAM' : 'AWAY', `${divTeams()[setup.away].city} ${divTeams()[setup.away].name}`],
     ['CPU LEVEL', setup.mode === 1 ? '-' : LEVELS[setup.cpu]],
     ['PERIODS', `3 X ${PERIODS[setup.period]} MIN`],
     ['SCRAPS', setup.scraps ? 'ON' : 'OFF'],
     ['SURGE', setup.surge ? 'ON' : 'OFF'],
+    ['CONTROLS', setup.controls === 0 ? `AUTO: ${touchMode ? 'TOUCH' : 'KEYS'}` : CONTROLS[setup.controls]],
     ['', 'START GAME'],
   ];
   rows.forEach(([label, value], i) => {
@@ -387,22 +426,24 @@ function drawSetup() {
     const sel = i === menuRow;
     if (sel) {
       ctx.fillStyle = '#26264a';
-      ctx.fillRect(14, y - 3, 220, 13);
+      ctx.fillRect(14, y - 3, 220, SETUP_ROW_H);
     }
+    const start = i === SETUP_ROWS - 1;
     drawText(ctx, label, 20, y, sel ? '#ffe14a' : '#9fb0c8');
-    drawText(ctx, i === 7 ? value : `< ${value} >`, i === 7 ? 124 : VALUE_X, y, sel ? '#ffffff' : '#cfd8e8', 1, i === 7 ? 'center' : 'left');
+    drawText(ctx, start ? value : `< ${value} >`, start ? 124 : VALUE_X, y, sel ? '#ffffff' : '#cfd8e8', 1, start ? 'center' : 'left');
   });
 
   // Team previews with their kits and ratings.
-  const fake = newGame({ teams: [setup.home, setup.away] });
+  const picked = [teamIndex(setup.division, setup.home), teamIndex(setup.division, setup.away)];
+  const fake = newGame({ teams: picked as [number, number] });
   for (const t of [0, 1]) {
     const x = 250 + t * 66;
     const kit = kitFor(fake, t);
     ctx.fillStyle = '#1a1a30';
     ctx.fillRect(x - 4, 26, 62, 100);
     drawSkater(ctx, x + 27, 56, t === 0 ? 0.0 : Math.PI, kit, (tick >> 3) & 1, false, false);
-    drawText(ctx, TEAMS[t === 0 ? setup.home : setup.away].abbr, x + 27, 62, '#ffffff', 1, 'center');
-    ratingBars(x, 76, t === 0 ? setup.home : setup.away);
+    drawText(ctx, TEAMS[picked[t]].abbr, x + 27, 62, '#ffffff', 1, 'center');
+    ratingBars(x, 76, picked[t]);
   }
 
   panel(8, 140, VIEW_W - 16, 70);
@@ -411,7 +452,7 @@ function drawSetup() {
     drawText(ctx, 'PASS: PASS, OR CHECK WITHOUT THE PUCK', 16, 160, '#cfd8e8');
     drawText(ctx, 'SHOOT: TAP WRISTER, HOLD SLAPPER, OR SWITCH', 16, 172, '#cfd8e8');
     drawText(ctx, 'SCORE: PASS ACROSS, SHOOT AS IT ARRIVES (ONE-TIMER)', 16, 184, '#8fe08f');
-    const note = setup.mode === 1 ? 'P2 NEEDS A KEYBOARD OR GAMEPAD' : 'TAP < > TO CHANGE, II TO PAUSE';
+    const note = setup.mode === 1 ? 'P2 NEEDS A KEYBOARD OR GAMEPAD' : 'TAP < > TO CHANGE, II PAUSES';
     drawText(ctx, `${device.toUpperCase()} - ${note}`, 16, 196, '#7a7a96');
     return;
   }

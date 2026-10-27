@@ -1,15 +1,18 @@
-// Headless games for tuning: node tools/sim.ts [games] [skill] [periodSeconds] [--human bot]
+// Headless games for tuning: node tools/sim.ts [games] [skill] [periodSeconds] [--human bot] [--division n]
 // CPU vs CPU by default; with --human, team 0 is played by a scripted bot from tools/bots.ts
 // through the human controls. Prints the averages that docs/DESIGN.md sets targets for.
 import { BOTS } from './bots.ts';
 import { step } from '../src/sim/game.ts';
 import { newGame } from '../src/sim/state.ts';
-import { TEAMS } from '../src/sim/teams.ts';
+import { DIVISIONS, teamIndex } from '../src/sim/teams.ts';
 
 const args = process.argv.slice(2);
 const hi = args.indexOf('--human');
 const botName = hi >= 0 ? args.splice(hi, 2)[1] : '';
 const bot = botName ? BOTS[botName] : null;
+const di = args.indexOf('--division');
+const division = di >= 0 ? Number(args.splice(di, 2)[1]) : 0;
+const TEAMS = DIVISIONS[division].teams;
 if (botName && !bot) throw new Error(`no bot ${botName}; have ${Object.keys(BOTS).join(', ')}`);
 const games = Number(args[0] || 200);
 const skill = Number(args[1] ?? 1);
@@ -26,7 +29,7 @@ const t0 = Date.now();
 for (let g = 0; g < games; g++) {
   const a = g % TEAMS.length;
   const b = (a + 1 + Math.floor(g / TEAMS.length) % (TEAMS.length - 1)) % TEAMS.length;
-  const s = newGame({ seed: 1000 + g, humans: [!!bot, false], cpuSkill: skill, periodSeconds, teams: [a, b] });
+  const s = newGame({ seed: 1000 + g, humans: [!!bot, false], cpuSkill: skill, periodSeconds, teams: [teamIndex(division, a), teamIndex(division, b)] });
   let n = 0;
   while (s.phase !== 'final' && n < 60 * 60 * 60) {
     step(s, [bot ? bot(s, n) : null, null]);
@@ -56,7 +59,7 @@ for (let g = 0; g < games; g++) {
   wins[s.teams[s.winner].def === TEAMS[a] ? a : b]++;
 }
 const f = (x: number) => (x / games).toFixed(2);
-console.log(`${games} games, skill ${skill}, ${periodSeconds}s periods${bot ? `, team 0 played by bot '${botName}'` : ''}, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`${DIVISIONS[division].full}: ${games} games, skill ${skill}, ${periodSeconds}s periods${bot ? `, team 0 played by bot '${botName}'` : ''}, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 console.log(`goals by team ${f(teamGoals[0])} - ${f(teamGoals[1])}  0-0 games ${zeroZero}  kinds ${Object.entries(kinds).map(([k, v]) => `${k} ${f(v)}`).join('  ')}`);
 console.log('goals per shot ' + Object.entries(shotKinds).map(([k, v]) => `${k} ${((kinds[k] || 0) / v).toFixed(2)} of ${f(v)}`).join('  '));
 console.log(`goals/game ${f(goals)}  shots/team ${(shots / games / 2).toFixed(1)}  save% ${(saves / Math.max(1, shots)).toFixed(3)}`);

@@ -18,7 +18,7 @@ export interface TeamDef {
   numbers: [number, number, number];
 }
 
-export const TEAMS: TeamDef[] = [
+const GREAT_NORTH_U18: TeamDef[] = [
   { city: 'North Bay', name: 'Trappers', abbr: 'NBY', primary: '#1f8a8a', secondary: '#f2f2e8', trim: '#0d3d4a',
     speed: 4, shooting: 4, checking: 2, grit: 2, goalie: 3, numbers: [7, 19, 4] },
   { city: 'Soo', name: 'Jr. Greyhounds', abbr: 'SSM', primary: '#b3261e', secondary: '#1a1a1a', trim: '#f2d16b',
@@ -32,3 +32,24 @@ export const TEAMS: TeamDef[] = [
   { city: 'New Liskeard', name: 'Cubs', abbr: 'NLK', primary: '#5b2a9a', secondary: '#9cf03a', trim: '#1c0c33',
     speed: 4, shooting: 4, checking: 3, grit: 3, goalie: 3, numbers: [99, 14, 44] },
 ];
+
+// Teams are picked within a division. Match options refer to teams by their index in TEAMS,
+// the divisions laid end to end.
+export interface Division {
+  name: string; // short enough for the setup screen
+  full: string;
+  teams: TeamDef[];
+}
+
+export const DIVISIONS: Division[] = [
+  { name: 'GREAT NORTH U18', full: 'Great North U18 League (Northern Ontario U18 AAA)', teams: GREAT_NORTH_U18 },
+];
+
+export const TEAMS: TeamDef[] = DIVISIONS.flatMap((d) => d.teams);
+
+// Index into TEAMS of team `i` of division `d`.
+export function teamIndex(d: number, i: number): number {
+  let n = 0;
+  for (let k = 0; k < d; k++) n += DIVISIONS[k].teams.length;
+  return n + i;
+}

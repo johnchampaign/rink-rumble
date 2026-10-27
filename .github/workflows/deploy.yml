@@ -34,13 +34,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npm run build
+      # Stamp the build with the commit (shown on the title screen) and give the script a new
+      # address on every deploy, so phones and tablets can't keep running a cached old copy.
+      - run: npm run build -- --define:BUILD_ID="\"${GITHUB_SHA::7}\""
 
       - name: Assemble site
         run: |
           mkdir -p _site/build
-          cp web/index.html _site/index.html
           cp web/build/main.js _site/build/main.js
+          sed "s|src=\"build/main.js\"|src=\"build/main.js?v=${GITHUB_SHA::7}\"|" web/index.html > _site/index.html
+          grep -q "main.js?v=${GITHUB_SHA::7}" _site/index.html
 
       - uses: actions/configure-pages@v5
 

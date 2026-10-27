@@ -10,9 +10,12 @@ export function detectDevice(): DeviceKind {
   const ua = navigator.userAgent;
   const touchPoints = navigator.maxTouchPoints || 0;
   const coarse = matchMedia('(pointer: coarse)').matches;
-  // iPadOS asks for desktop sites by default and claims to be a Mac; only the touch points give it away.
-  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1)) return 'tablet';
+  // iPhones also say "like Mac OS X", so they are sorted out first.
   if (/iPhone|iPod/.test(ua)) return 'phone';
+  // iPadOS asks for desktop sites by default and claims to be a Mac; only touch support gives it
+  // away (no Mac has a touch screen).
+  const macLike = /Macintosh|Mac OS X/.test(ua) || navigator.platform === 'MacIntel';
+  if (/iPad/.test(ua) || (macLike && (touchPoints > 1 || 'ontouchend' in document))) return 'tablet';
   if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'phone' : 'tablet';
   // Anything else: a coarse main pointer means a finger is the main way in; the screen's short
   // side tells a phone from a tablet. A touchscreen laptop still has a mouse, so it stays desktop.

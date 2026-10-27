@@ -34,9 +34,11 @@ stick up or down as you shoot to pick a side of the net.
 **Phones and tablets** get on-screen controls automatically: put your left thumb anywhere on the
 left half to skate (the stick appears where you touch), and use the PASS and SHOOT buttons on the
 right; II pauses. Menus work by tapping, including the left or right side of a setting to change
-it. Phones play sideways. The game decides between phone, tablet and desktop from the browser
+it. Phones play sideways. Teams are picked within a division, chosen on the setup screen. The game decides between phone, tablet and desktop from the browser
 (`web/device.ts`); add `?device=phone`, `?device=tablet` or `?device=desktop` to the address to
-override it. A touchscreen laptop switches to touch controls the first time the screen is touched.
+override it, or set CONTROLS on the setup screen to TOUCH or KEYS / PAD (AUTO follows the
+detection). A touchscreen laptop switches to touch controls the first time the screen is touched.
+The title screen's bottom corner shows the detected device, the controls in use and the build.
 In two-player mode the touch controls belong to player 1.
 
 **How to score:** goalies stop shots that hit them, so make them move. Pass across the slot and
