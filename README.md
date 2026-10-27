@@ -1,8 +1,10 @@
 # Rink Rumble
 
 An original 3-on-3 arcade ice hockey game for the browser: fast skating, hard checks, scraps
-and shootouts. Everything here (name, teams, rules, fight system, art and sound) is original;
-see [docs/DESIGN.md](docs/DESIGN.md).
+and shootouts. The game, rules, fight system, art and sound are original; see
+[docs/DESIGN.md](docs/DESIGN.md). The six teams take their names from the clubs of the
+[Great North U18 League](https://gnml.org/) in Northern Ontario. Their colours, numbers and
+ratings are made up for the game, and the game has no connection with the league or its clubs.
 
 **Play it online:** https://johnchampaign.github.io/rink-rumble/
 

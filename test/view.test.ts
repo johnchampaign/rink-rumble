@@ -11,7 +11,7 @@ test('goal banners name the kind of shot that scored', () => {
   s.events = [{ type: 'goal', team: 0, scorer: 1, kind: 'oneTimer' }];
   absorbEvents(v, s);
   assert.equal(v.banner?.text, 'GOAL!');
-  assert.match(v.banner!.sub, /^#19 HBR +ONE-TIMER!$/);
+  assert.match(v.banner!.sub, /^#19 NBY +ONE-TIMER!$/);
   s.events = [{ type: 'goal', team: 1, scorer: 4, kind: 'rebound' }];
   absorbEvents(v, s);
   assert.match(v.banner!.sub, /ON THE REBOUND!/);

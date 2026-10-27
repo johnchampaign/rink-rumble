@@ -2,8 +2,8 @@
 
 An original arcade ice hockey game in the spirit of the 8-bit hockey games of the late 1980s:
 fast skating, hard checks, the occasional scrap, and a shootout when regulation ends tied.
-Nothing here is taken from any existing game: the name, teams, rules variant, fight system,
-art, sound and numbers are all our own. Every constant lives in `src/sim/constants.ts` and is
+Nothing here is taken from any existing game: the name, rules variant, fight system, art, sound
+and numbers are all our own. The team names come from a real junior league (see Teams). Every constant lives in `src/sim/constants.ts` and is
 tuned with the headless simulator (`npm run sim`), not guessed.
 
 ## Pillars
@@ -78,9 +78,12 @@ shoot and hit a little harder. The meter then empties. Turn it off in Options fo
 
 ## Teams
 
-Six fictional clubs, each with ratings from 1 to 5 in speed, shooting, checking, grit (fighting)
-and goaltending. Total rating points are close, so each team has its own personality instead of a
-strict ladder.
+Six clubs named after the teams of the Great North U18 League (Northern Ontario U18 AAA), the
+league the North Bay Trappers play in, as listed for 2023-24 on gnml.org: North Bay Trappers,
+Soo Jr. Greyhounds, Sudbury Wolves, Timmins Majors, Kapuskasing Flyers and New Liskeard Cubs.
+Only the names are theirs; colours, numbers and ratings (1 to 5 in speed, shooting, checking,
+grit and goaltending) are the game's own. Each team has its own personality instead of a strict
+ladder, and the simulator keeps every club's win rate between about 35 and 65 percent.
 
 ## Modes
 
