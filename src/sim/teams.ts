@@ -33,6 +33,30 @@ const GREAT_NORTH_U18: TeamDef[] = [
     speed: 4, shooting: 4, checking: 3, grit: 3, goalie: 3, numbers: [99, 14, 44] },
 ];
 
+// The U11 A division of the Nickel District Minor Hockey League (NOHA), where the East Nipissing
+// Vipers' U11 rep team plays, as scheduled on nickeldistricthockey.ca for 2025-26 (the league had
+// not published 2026-27 divisions yet). Names only; colours, numbers and ratings are the game's own.
+const NICKEL_DISTRICT_U11: TeamDef[] = [
+  { city: 'East Nipissing', name: 'Vipers', abbr: 'ENV', primary: '#1e7a3c', secondary: '#e8ece4', trim: '#0c2a16',
+    speed: 4, shooting: 4, checking: 3, grit: 3, goalie: 3, numbers: [11, 8, 21] },
+  { city: 'Copper Cliff', name: 'Reds', abbr: 'CCR', primary: '#c0282a', secondary: '#f4f0e8', trim: '#3a0d0e',
+    speed: 3, shooting: 4, checking: 2, grit: 3, goalie: 3, numbers: [9, 17, 5] },
+  { city: 'North Bay', name: 'Trappers', abbr: 'NBT', primary: '#d08a1e', secondary: '#f2e6c8', trim: '#1b2a4a',
+    speed: 3, shooting: 3, checking: 3, grit: 3, goalie: 4, numbers: [16, 23, 7] },
+  { city: 'Northshore', name: 'Thundercats', abbr: 'NST', primary: '#3a3f9a', secondary: '#f0d850', trim: '#141838',
+    speed: 4, shooting: 4, checking: 2, grit: 2, goalie: 3, numbers: [12, 91, 4] },
+  { city: 'Nickel City', name: 'Cubs', abbr: 'NCC', primary: '#2a5ab0', secondary: '#ffffff', trim: '#102040',
+    speed: 3, shooting: 3, checking: 4, grit: 3, goalie: 3, numbers: [14, 2, 27] },
+  { city: 'Sudbury', name: 'Wolves', abbr: 'SUW', primary: '#244a9a', secondary: '#cfd8e8', trim: '#0e1e44',
+    speed: 3, shooting: 4, checking: 3, grit: 2, goalie: 3, numbers: [19, 10, 3] },
+  { city: 'Sudbury', name: 'Lady Wolves', abbr: 'SLW', primary: '#7a2a8a', secondary: '#f0e8f4', trim: '#2a0c33',
+    speed: 4, shooting: 3, checking: 2, grit: 2, goalie: 4, numbers: [22, 13, 6] },
+  { city: 'Manitoulin', name: 'Panthers', abbr: 'MAN', primary: '#1a1a1a', secondary: '#e8b030', trim: '#3a3a3a',
+    speed: 3, shooting: 3, checking: 4, grit: 4, goalie: 3, numbers: [15, 24, 8] },
+  { city: 'West Nipissing', name: 'Sting', abbr: 'WNS', primary: '#e0c020', secondary: '#1a1a1a', trim: '#5a4a08',
+    speed: 4, shooting: 3, checking: 3, grit: 3, goalie: 3, numbers: [18, 20, 33] },
+];
+
 // Teams are picked within a division. Match options refer to teams by their index in TEAMS,
 // the divisions laid end to end.
 export interface Division {
@@ -43,6 +67,7 @@ export interface Division {
 
 export const DIVISIONS: Division[] = [
   { name: 'GREAT NORTH U18', full: 'Great North U18 League (Northern Ontario U18 AAA)', teams: GREAT_NORTH_U18 },
+  { name: 'NICKEL DIST U11 A', full: 'Nickel District Minor Hockey League U11 A (NOHA)', teams: NICKEL_DISTRICT_U11 },
 ];
 
 export const TEAMS: TeamDef[] = DIVISIONS.flatMap((d) => d.teams);

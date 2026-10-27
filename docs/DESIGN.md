@@ -78,12 +78,20 @@ shoot and hit a little harder. The meter then empties. Turn it off in Options fo
 
 ## Teams
 
-Six clubs named after the teams of the Great North U18 League (Northern Ontario U18 AAA), the
-league the North Bay Trappers play in, as listed for 2023-24 on gnml.org: North Bay Trappers,
-Soo Jr. Greyhounds, Sudbury Wolves, Timmins Majors, Kapuskasing Flyers and New Liskeard Cubs.
-Only the names are theirs; colours, numbers and ratings (1 to 5 in speed, shooting, checking,
-grit and goaltending) are the game's own. Each team has its own personality instead of a strict
-ladder, and the simulator keeps every club's win rate between about 35 and 65 percent.
+Teams come in divisions, chosen on the setup screen; a game is always between two teams of the
+same division. Both are named after real Northern Ontario leagues. Only the names are theirs;
+colours, numbers and ratings (1 to 5 in speed, shooting, checking, grit and goaltending) are the
+game's own, set so each team has a personality and the simulator keeps win rates roughly even.
+
+- **Great North U18:** the Great North U18 League, the league the North Bay Trappers U18 play
+  in, as listed for 2023-24 on gnml.org: North Bay Trappers, Soo Jr. Greyhounds, Sudbury Wolves,
+  Timmins Majors, Kapuskasing Flyers and New Liskeard Cubs.
+- **Nickel District U11 A:** the U11 A division of the Nickel District Minor Hockey League (NOHA),
+  where the East Nipissing Vipers' U11 rep team plays in 2026-27. The league had not yet published
+  its 2026-27 divisions, so the nine teams are those on its 2025-26 U11 A schedule: East
+  Nipissing Vipers, Copper Cliff Reds, North Bay Trappers, Northshore Thundercats (Elliot Lake),
+  Nickel City Cubs, Sudbury Wolves, Sudbury Lady Wolves, Manitoulin Panthers and West Nipissing
+  Sting.
 
 ## Modes
 
