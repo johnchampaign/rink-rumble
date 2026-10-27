@@ -4,6 +4,8 @@ An original 3-on-3 arcade ice hockey game for the browser: fast skating, hard ch
 and shootouts. Everything here (name, teams, rules, fight system, art and sound) is original;
 see [docs/DESIGN.md](docs/DESIGN.md).
 
+**Play it online:** https://johnchampaign.github.io/rink-rumble/
+
 ## Run it
 
 ```bash
@@ -12,6 +14,8 @@ npm start
 ```
 
 Then open http://127.0.0.1:8823/. The browser build is `web/build/main.js` (`npm run build`).
+Every push to `main` is tested, built and published to GitHub Pages by
+`.github/workflows/deploy.yml`.
 
 ## Controls
 
