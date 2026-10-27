@@ -37,3 +37,7 @@ when the CPU shoots (up/down to slide, pass to dive).
 - `web/main.ts` loop, input and menus. `tools/serve.ts` static server.
 - `tools/sim.ts` headless CPU-vs-CPU games for tuning: `npm run sim -- 120`.
 - `test/` physics, scraps, shootout rules, controls, determinism and complete games: `npm test`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,6 +1,8 @@
 {
   "name": "rink-rumble",
   "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "esbuild web/main.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=web/build/main.js",
