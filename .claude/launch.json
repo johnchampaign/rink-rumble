@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rink-rumble",
+      "runtimeExecutable": "systemd-run",
+      "runtimeArgs": ["--user", "--scope", "-q", "-p", "MemoryMax=2G", "node", "tools/serve.ts", "8823"],
+      "port": 8823
+    }
+  ]
+}

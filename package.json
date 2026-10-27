@@ -1,0 +1,17 @@
+{
+  "name": "rink-rumble",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild web/main.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=web/build/main.js",
+    "start": "npm run build && node tools/serve.ts 8823",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "sim": "node tools/sim.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
