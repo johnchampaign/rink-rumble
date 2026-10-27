@@ -22,17 +22,46 @@ interface Banner {
   timer: number;
 }
 
+// Small text that rises from a spot on the ice, e.g. "ONE-TIMER" over the shooter.
+interface Toast {
+  text: string;
+  x: number;
+  y: number;
+  color: string;
+  timer: number;
+}
+
+const GOAL_KIND: Record<string, string> = {
+  oneTimer: 'ONE-TIMER!',
+  rebound: 'ON THE REBOUND!',
+  slap: 'SLAP SHOT!',
+  wrist: 'WRIST SHOT',
+  none: 'IN THE SCRAMBLE!',
+};
+
+// Shown between periods, one per intermission.
+const TIPS = [
+  'PASS ACROSS THE SLOT, THEN SHOOT FAST',
+  'PRESS SHOOT AS THE PASS ARRIVES: ONE-TIMER',
+  'GOALIES SAVE WHAT HITS THEM: MAKE THEM MOVE',
+  'FOLLOW YOUR SHOT: REBOUNDS GO IN',
+  'HOLD UP OR DOWN AS YOU SHOOT TO PICK A SIDE',
+  'BODIES IN FRONT SCREEN THE GOALIE',
+  'LONG SLAP SHOTS RARELY BEAT A SET GOALIE',
+];
+
 export interface View {
   camX: number;
   camY: number;
   art: HTMLCanvasElement | null;
   artKey: string;
   banner: Banner | null;
+  toasts: Toast[];
   excited: number; // crowd bounce frames
 }
 
 export function createView(): View {
-  return { camX: 0, camY: 0, art: null, artKey: '', banner: null, excited: 0 };
+  return { camX: 0, camY: 0, art: null, artKey: '', banner: null, toasts: [], excited: 0 };
 }
 
 export function kitFor(s: GameState, team: number): Kit {
@@ -58,11 +87,20 @@ export function absorbEvents(v: View, s: GameState) {
     switch (e.type) {
       case 'goal': {
         const k = e.scorer >= 0 ? s.skaters[e.scorer] : null;
-        const who = k ? `#${k.number} ${s.teams[e.team].def.abbr}` : s.teams[e.team].def.name;
-        v.banner = { text: 'GOAL!', sub: s.phase === 'shootout' ? `${who} SCORES` : who, color: '#ffe14a', timer: 140 };
+        const who = k ? `#${k.number} ${s.teams[e.team].def.abbr}` : s.teams[e.team].def.name.toUpperCase();
+        const how = GOAL_KIND[e.kind];
+        const sub = s.phase === 'shootout' ? `${who} SCORES` : how ? `${who}  ${how}` : who;
+        v.banner = { text: 'GOAL!', sub, color: '#ffe14a', timer: 140 };
         v.excited = 150;
         break;
       }
+      case 'shot':
+        // Tell a human player when the one-timer timing worked, goal or not.
+        if (e.kind === 'oneTimer' && s.options.humans[e.team]) {
+          const k = s.skaters[e.shooter];
+          v.toasts.push({ text: 'ONE-TIMER', x: k.x, y: k.y - 22, color: P_COLORS[e.team], timer: 50 });
+        }
+        break;
       case 'surge':
         v.banner = { text: 'SURGE!', sub: s.teams[e.team].def.name.toUpperCase(), color: '#ff8a3a', timer: 80 };
         v.excited = 60;
@@ -138,6 +176,8 @@ export function render(ctx: CanvasRenderingContext2D, s: GameState, v: View) {
 
   sortedSprites(s, ctx, ox, oy);
   drawMarkers(ctx, s, ox, oy);
+  v.toasts = v.toasts.filter((t) => --t.timer > 0);
+  for (const t of v.toasts) drawText(ctx, t.text, t.x + ox, t.y + oy - (50 - t.timer) * 0.3, t.color, 1, 'center', '#000');
   drawHud(ctx, s);
   drawPenaltyBox(ctx, s);
 
@@ -224,7 +264,7 @@ function bigBanner(ctx: CanvasRenderingContext2D, text: string, sub: string, col
 }
 
 function drawSummary(ctx: CanvasRenderingContext2D, s: GameState, title: string) {
-  const w = 220;
+  const w = 300;
   const h = 96;
   const x = (VIEW_W - w) / 2;
   const y = HUD_H + 40;
@@ -244,6 +284,8 @@ function drawSummary(ctx: CanvasRenderingContext2D, s: GameState, title: string)
     const w2 = s.teams[s.winner].def;
     drawText(ctx, `${w2.name} WIN${s.shootout ? ' IN SHOOTOUT' : ''}`, VIEW_W / 2, y + 74, '#ffe14a', 1, 'center');
     drawText(ctx, 'PRESS ENTER', VIEW_W / 2, y + 86, (s.frame >> 4) & 1 ? '#ffffff' : '#7a7a90', 1, 'center');
+  } else if (s.options.humans[0] || s.options.humans[1]) {
+    drawText(ctx, 'TIP: ' + TIPS[(s.period - 1 + Math.abs(s.options.seed)) % TIPS.length], VIEW_W / 2, y + 80, '#8fe08f', 1, 'center');
   }
 }
 

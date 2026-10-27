@@ -56,6 +56,7 @@ export function skaterAI(s: GameState, k: Skater): Input {
 }
 
 function carrierAI(s: GameState, k: Skater): Input {
+  const sk = skill(s, k.team);
   const sgn = attackSign(s, k.team);
   const netX = sgn * RINK.goalX;
   const ahead = (netX - k.x) * sgn; // distance in front of the goal line
@@ -73,8 +74,28 @@ function carrierAI(s: GameState, k: Skater): Input {
     return inp;
   }
 
+  // Fresh off a pass in a shooting spot: one-time it at the side the goalie is leaving.
+  if (k.oneTimer > 0 && ahead > 14 && d < 160 && Math.abs(k.y) < 95 && !k.prevB && chance(s.rng, sk.oneTimer)) {
+    const g = s.goalies[1 - k.team];
+    return { x: sgn * 0.2, y: g.y > 0 ? -1 : 1, a: false, b: true };
+  }
+
   if (thinks(s, k)) {
     const corner = range(s.rng, 0, 1) < 0.5 ? -1 : 1;
+    // In the zone, look for a teammate across the slot: the goalie has to move.
+    if (ahead > 20 && ahead < 170 && chance(s.rng, sk.crossPass)) {
+      const target = mates(s, k).find((m) => {
+        const mAhead = (netX - m.x) * sgn;
+        return m.down === 0 && Math.abs(m.y - k.y) > 35 && mAhead > 25 && mAhead < 130 && Math.abs(m.y) < 70 &&
+          !laneBlocked(s, k.team, k.x, k.y, m.x, m.y, 12);
+      });
+      if (target) {
+        const dx = target.x - k.x;
+        const dy = target.y - k.y;
+        const dl = Math.hypot(dx, dy) || 1;
+        return { x: dx / dl, y: dy / dl, a: !k.prevA, b: false };
+      }
+    }
     // Shot from close in with a decent angle.
     if (ahead > 14 && d < 115 && Math.abs(k.y) < 85 && chance(s.rng, d < 70 ? 0.35 : 0.14)) {
       k.aiChargeTo = 0;

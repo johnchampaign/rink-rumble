@@ -16,6 +16,8 @@ export function stepGoalie(s: GameState, g: Goalie, inp: Input | null) {
   if (g.dive > 0) g.dive--;
   if (g.diveCooldown > 0) g.diveCooldown--;
 
+  const oldY = g.y;
+  g.vy = 0;
   if (g.holding > 0) {
     p.x = g.x - side * 7;
     p.y = g.y;
@@ -45,6 +47,12 @@ export function stepGoalie(s: GameState, g: Goalie, inp: Input | null) {
       const depth = GOALIE.depthNear + (GOALIE.depthFar - GOALIE.depthNear) * Math.max(0, Math.min(1, (d - 40) / 150));
       tx = netX + (dx / d) * depth;
       ty = Math.max(-RINK.netHalfW - 2, Math.min(RINK.netHalfW + 2, (dy / d) * depth * 1.4));
+      // Once the goalie has read a shot, slide onto its line. Long shots give time to read.
+      const react = GOALIE.reactBase - goalieRating(s, g.team);
+      if (p.owner === -1 && p.isShot && p.shotTeam !== g.team && p.vx * side > 0 && s.frame - p.releaseFrame >= react) {
+        const yAt = p.y + p.vy * ((tx - p.x) / p.vx);
+        ty = Math.max(-RINK.netHalfW - 2, Math.min(RINK.netHalfW + 2, yAt));
+      }
     }
     maybeDive(s, g, netX, side);
   }
@@ -56,6 +64,7 @@ export function stepGoalie(s: GameState, g: Goalie, inp: Input | null) {
     g.x += (mx / md) * step;
     g.y += (my / md) * step;
   }
+  g.vy = g.y - oldY;
   pokeCarrier(s, g);
 }
 
@@ -127,6 +136,37 @@ function outlet(s: GameState, g: Goalie) {
   s.events.push({ type: 'pass', team: g.team });
 }
 
+// How likely a goalie in reach of a shot is to stop it. The goalie's position does most of the
+// work: a shot straight into the pads is almost always stopped, one at the edge of the goalie's
+// reach (because the goalie is late getting across) goes in far more often.
+export function shotSaveChance(s: GameState, g: Goalie, speed: number, reach: number): number {
+  const p = s.puck;
+  const netX = s.teams[g.team].side * RINK.goalX;
+  let pSave = GOALIE.saveBase + GOALIE.saveStep * goalieRating(s, g.team);
+  if (!isHuman(s, g.team)) pSave += CPU[s.options.cpuSkill].goalieBonus;
+  pSave -= Math.max(0, speed - 5) * GOALIE.saveSpeedCost;
+  // How far from the goalie's centre the puck's path passes.
+  const miss = Math.abs((g.x - p.x) * p.vy - (g.y - p.y) * p.vx) / (speed || 1);
+  pSave -= Math.min(1, miss / (reach + PUCK.radius)) ** 2 * GOALIE.saveEdgeCost;
+  if (Math.abs(g.vy) > GOALIE.movingSpeed) pSave -= GOALIE.movingCost;
+  if (p.kind === 'oneTimer') pSave -= GOALIE.oneTimerCost;
+  if (p.kind === 'rebound') pSave -= GOALIE.reboundCost;
+  // Bodies between the puck and the goalie block the view.
+  let screens = 0;
+  for (const k of s.skaters) {
+    if (!onIce(k) || k.id === p.lastSkater) continue;
+    const along = ((k.x - g.x) * (p.x - g.x) + (k.y - g.y) * (p.y - g.y)) / (Math.hypot(p.x - g.x, p.y - g.y) || 1);
+    if (along < 8 || along > 70) continue;
+    const off = Math.abs((k.x - g.x) * (p.y - g.y) - (k.y - g.y) * (p.x - g.x)) / (Math.hypot(p.x - g.x, p.y - g.y) || 1);
+    if (off < 9) screens++;
+  }
+  pSave -= Math.min(2, screens) * GOALIE.screenCost;
+  if (Math.abs(p.shotFromX - netX) > GOALIE.farShot) pSave += GOALIE.saveFarBonus;
+  if (g.dive > 0) pSave += 0.05;
+  if (s.phase === 'shootout') pSave -= GOALIE.shootoutCost;
+  return pSave;
+}
+
 // Called for every substep of a loose puck. Returns true when the goalie stopped it.
 export function trySave(s: GameState, g: Goalie): boolean {
   const p = s.puck;
@@ -145,17 +185,10 @@ export function trySave(s: GameState, g: Goalie): boolean {
   let onTarget = false;
   const shot = p.isShot && p.shotTeam !== g.team && p.vx * side > 0;
   if (shot) {
-    pSave = GOALIE.saveBase + GOALIE.saveStep * goalieRating(s, g.team);
-    if (!isHuman(s, g.team)) pSave += CPU[s.options.cpuSkill].goalieBonus;
-    pSave -= Math.max(0, speed - 5) * GOALIE.saveSpeedCost;
     const yAt = p.y + p.vy * ((netX - p.x) / p.vx);
     onTarget = Math.abs(yAt) < RINK.netHalfW;
     if (onTarget) s.teams[p.shotTeam].shots++;
-    pSave -= Math.min(1.2, Math.abs(yAt - g.y) / RINK.netHalfW) * GOALIE.saveOffCentreCost;
-    if (Math.abs(p.shotFromX - netX) > GOALIE.farShot) pSave += GOALIE.saveFarBonus;
-    if (s.frame - p.lastSaveFrame < GOALIE.reboundWindow) pSave -= GOALIE.reboundCost;
-    if (g.dive > 0) pSave += 0.05;
-    if (s.phase === 'shootout') pSave -= GOALIE.shootoutCost;
+    pSave = shotSaveChance(s, g, speed, reach);
     if (!onTarget) pSave = 0.97; // going wide anyway: the goalie lets it go or steers it away
   } else pSave = 0.96;
 

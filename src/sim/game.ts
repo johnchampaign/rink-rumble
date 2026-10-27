@@ -1,6 +1,6 @@
 // The match: phases, clock, faceoffs, goals, scraps, the penalty box and the shootout.
 // `step` is the only entry point that advances time.
-import { CHECK, CPU, FPS, GOALIE, MOMENTUM, PENALTY, PHASE, RINK } from './constants.ts';
+import { CHECK, CPU, FPS, GOALIE, MOMENTUM, PENALTY, PHASE, RINK, SHOT } from './constants.ts';
 import { fightAI, newFight, stepFight } from './fight.ts';
 import { skaterAI } from './ai.ts';
 import { stepGoalie } from './goalie.ts';
@@ -159,6 +159,7 @@ function stepPlay(s: GameState, ins: Input[]) {
       s.events.push({ type: 'surge', team: t });
     }
     if (isHuman(s, t)) updateActive(s, t, ins[t]);
+    s.bAge[t] = ins[t].b && !s.prevInput[t].b ? 0 : s.bAge[t] + 1;
   }
 
   for (const k of s.skaters) {
@@ -166,7 +167,9 @@ function stepPlay(s: GameState, ins: Input[]) {
     const human = isHuman(s, k.team) && s.active[k.team] === k.id;
     const inp = human ? ins[k.team] : skaterAI(s, k);
     const aEdge = human ? inp.a && !s.prevInput[k.team].a : inp.a && !k.prevA;
-    const bEdge = human ? inp.b && !s.prevInput[k.team].b : inp.b && !k.prevB;
+    // A human who pressed shoot just before the pass arrived gets the one-timer.
+    const early = human && k.oneTimer === SHOT.oneTimerWindow && s.bAge[k.team] <= SHOT.oneTimerBuffer;
+    const bEdge = human ? (inp.b && !s.prevInput[k.team].b) || early : inp.b && !k.prevB;
     skaterActions(s, k, inp, aEdge, bEdge);
     moveSkater(s, k, inp);
     k.prevA = inp.a;
@@ -221,7 +224,7 @@ function goal(s: GameState, side: number) {
   s.teams[scorer].score++;
   addMomentum(s, scorer, MOMENTUM.shot);
   s.lastScorer = p.lastSkater;
-  s.events.push({ type: 'goal', team: scorer, scorer: p.lastSkater });
+  s.events.push({ type: 'goal', team: scorer, scorer: p.lastSkater, kind: p.kind });
   // A scrap loser's time ends early when the other team scores on the power play.
   const boxed = s.skaters.filter((k) => k.team !== scorer && k.penalty > 0 && k.releasable);
   if (boxed.length) boxed.sort((a, b) => a.penalty - b.penalty)[0].penalty = 1;
@@ -352,7 +355,7 @@ function startAttempt(s: GameState) {
 function endAttempt(s: GameState, scored: boolean) {
   const so = s.shootout!;
   s.events.push({ type: 'shootoutResult', team: so.shooter, scored });
-  if (scored) s.events.push({ type: 'goal', team: so.shooter, scorer: s.puck.lastSkater });
+  if (scored) s.events.push({ type: 'goal', team: so.shooter, scorer: s.puck.lastSkater, kind: 'shootout' });
   recordAttempt(so, scored);
   so.stage = 'result';
   so.timer = PHASE.shootoutResult;

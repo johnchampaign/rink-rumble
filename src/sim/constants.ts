@@ -42,6 +42,10 @@ export const SHOT = {
   aimNoiseBase: 0.11, // radians, minus aimNoiseStep × shooting rating
   aimNoiseStep: 0.018,
   slapNoiseFactor: 1.4,
+  oneTimer: 7.2, // shot speed of a one-timer
+  oneTimerWindow: 10, // frames after taking a pass in which shooting is a one-timer
+  oneTimerBuffer: 8, // a shoot press this many frames before the pass arrives still counts
+  oneTimerMinFlight: 6, // the pass must travel at least this many frames
 };
 
 export const PUCK = {
@@ -50,6 +54,8 @@ export const PUCK = {
   boardBounce: 0.62,
   netBounce: 0.35,
   hardToCatch: 5.5, // above this speed a pickup can fail
+  blockRadius: 5, // a hard shot is only stopped by a skater it passes this close to
+  catchHardShot: 0.35, // catch chance lost per unit of speed above hardToCatch
   deadFrames: 300, // a puck nobody touches for this long draws a whistle
 };
 
@@ -87,11 +93,16 @@ export const GOALIE = {
   depthNear: 9, // how far off the goal line the goalie plays
   depthFar: 16,
   holdFrames: 50,
-  saveBase: 0.88, // + saveStep × goalie rating
+  saveBase: 0.88, // + saveStep × goalie rating, for a shot right into the goalie
   saveStep: 0.03,
   saveSpeedCost: 0.03, // per unit of puck speed above 5
-  saveOffCentreCost: 0.2, // at the post compared with right at the goalie
-  saveFarBonus: 0.14, // shots from beyond farShot
+  saveEdgeCost: 0.42, // × (miss distance / reach)²: shots near the edge of the goalie's reach
+  movingCost: 0.12, // goalie still sliding across when the shot arrives
+  movingSpeed: 0.6,
+  oneTimerCost: 0.1,
+  screenCost: 0.08, // per skater standing in the shooting lane in front of the goalie
+  reactBase: 10, // frames before a goalie reacts to a shot's line, minus the goalie rating
+  saveFarBonus: 0.05, // shots from beyond farShot
   farShot: 170,
   reboundWindow: 40, // frames after a save in which a shot counts as a rebound
   reboundCost: 0.12,
@@ -128,7 +139,7 @@ export const PHASE = {
 
 // CPU skill levels: Rookie, Pro, All-Star.
 export const CPU = [
-  { think: 14, aimExtra: 0.06, aggression: 0.35, goalieBonus: -0.04, fightRead: 0.25 },
-  { think: 8, aimExtra: 0.02, aggression: 0.55, goalieBonus: 0, fightRead: 0.5 },
-  { think: 4, aimExtra: 0, aggression: 0.75, goalieBonus: 0.03, fightRead: 0.75 },
+  { think: 14, aimExtra: 0.06, aggression: 0.35, goalieBonus: -0.04, fightRead: 0.25, oneTimer: 0.06, crossPass: 0.1 },
+  { think: 8, aimExtra: 0.02, aggression: 0.55, goalieBonus: 0, fightRead: 0.5, oneTimer: 0.12, crossPass: 0.2 },
+  { think: 4, aimExtra: 0, aggression: 0.75, goalieBonus: 0.03, fightRead: 0.75, oneTimer: 0.25, crossPass: 0.3 },
 ];

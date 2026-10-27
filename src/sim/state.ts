@@ -42,6 +42,7 @@ export interface Skater {
   aiTy: number;
   aiChargeTo: number;
   aiAim: number; // −1, 0 or 1: which part of the net the CPU is shooting for
+  oneTimer: number; // frames left in which a shot off a teammate's pass is a one-timer
 }
 
 export interface Goalie {
@@ -53,6 +54,7 @@ export interface Goalie {
   diveCooldown: number;
   lastTouch: number; // puck touch id this goalie already tried to stop
   prevA: boolean;
+  vy: number; // sideways movement last frame; a goalie still sliding is easier to beat
 }
 
 // Puck owner codes: −1 loose, 0–5 a skater, GOALIE_OWNER + team a goalie.
@@ -71,7 +73,12 @@ export interface Puck {
   lastSkater: number; // last skater who touched it, for goal credit
   deadFrames: number;
   lastSaveFrame: number;
+  releaseFrame: number; // frame the puck last left a stick
+  passFrom: number; // skater who passed it, −1 when the last release was not a pass
+  kind: ShotKind; // what sort of shot this is, for goal call-outs
 }
+
+export type ShotKind = 'wrist' | 'slap' | 'oneTimer' | 'rebound' | 'shootout' | 'none';
 
 export interface TeamState {
   def: TeamDef;
@@ -98,11 +105,11 @@ export type GameEvent =
   | { type: 'whistle' }
   | { type: 'drop' }
   | { type: 'pass'; team: number }
-  | { type: 'shot'; team: number; power: number }
+  | { type: 'shot'; team: number; power: number; kind: ShotKind; shooter: number }
   | { type: 'board'; speed: number }
   | { type: 'post' }
   | { type: 'save'; team: number; caught: boolean }
-  | { type: 'goal'; team: number; scorer: number }
+  | { type: 'goal'; team: number; scorer: number; kind: ShotKind }
   | { type: 'hit'; team: number; knockdown: boolean }
   | { type: 'poke'; team: number }
   | { type: 'fightStart' }
@@ -127,6 +134,7 @@ export interface GameState {
   teams: TeamState[];
   active: number[]; // controlled skater id for each team, −1 for a CPU team
   prevInput: Input[]; // last frame's controller input per team, for button edges
+  bAge: number[]; // frames since each controller last pressed shoot
   prevOwner: number;
   pendingFight: number[] | null; // [checker, victim] set by a check, started by game.ts
   heat: number[]; // 3×3 grid: home slot × away slot
@@ -159,11 +167,11 @@ export function newGame(opts: Partial<MatchOptions> = {}): GameState {
       id, team, slot, number: TEAMS[options.teams[team]].numbers[slot],
       x: 0, y: 0, vx: 0, vy: 0, facing: 0, down: 0, cooldown: 0, charge: -1, lunge: 0,
       checkCooldown: 0, penalty: 0, releasable: false, benched: false, stride: 0, prevA: false,
-      prevB: false, aiTimer: 0, aiTx: 0, aiTy: 0, aiChargeTo: 0, aiAim: 0,
+      prevB: false, aiTimer: 0, aiTx: 0, aiTy: 0, aiChargeTo: 0, aiAim: 0, oneTimer: 0,
     });
   }
   const goalies: Goalie[] = [0, 1].map((team) => ({
-    team, x: 0, y: 0, holding: 0, dive: 0, diveCooldown: 0, lastTouch: -1, prevA: false,
+    team, x: 0, y: 0, holding: 0, dive: 0, diveCooldown: 0, lastTouch: -1, prevA: false, vy: 0,
   }));
   const teams: TeamState[] = [0, 1].map((t) => ({
     def: TEAMS[options.teams[t]], score: 0, shots: 0, momentum: 0, surge: 0, side: t === 0 ? -1 : 1,
@@ -180,11 +188,12 @@ export function newGame(opts: Partial<MatchOptions> = {}): GameState {
     goalies,
     puck: {
       x: 0, y: 0, vx: 0, vy: 0, owner: -1, touch: 0, isShot: false, shotFromX: 0, shotTeam: -1,
-      lastSkater: -1, deadFrames: 0, lastSaveFrame: -1000,
+      lastSkater: -1, deadFrames: 0, lastSaveFrame: -1000, releaseFrame: 0, passFrom: -1, kind: 'none',
     },
     teams,
     active: [options.humans[0] ? 0 : -1, options.humans[1] ? 3 : -1],
     prevInput: [NO_INPUT, NO_INPUT],
+    bAge: [99, 99],
     prevOwner: -1,
     pendingFight: null,
     heat: new Array(9).fill(0),

@@ -1,5 +1,5 @@
 // Skater movement, collisions and puck actions (shoot, pass, check, poke).
-import { CHECK, CPU, MOMENTUM, RINK, SHOT, SKATER } from './constants.ts';
+import { CHECK, CPU, GOALIE, MOMENTUM, RINK, SHOT, SKATER } from './constants.ts';
 import { boardContact, netBoxContact } from './rink.ts';
 import { chance, gauss, range } from './rng.ts';
 import { addMomentum, attackSign, isHuman, onIce, type GameState, type Input, type Skater } from './state.ts';
@@ -12,6 +12,9 @@ export function release(s: GameState, k: Skater | null, vx: number, vy: number, 
   p.touch++;
   p.isShot = isShot;
   p.deadFrames = 0;
+  p.releaseFrame = s.frame;
+  p.passFrom = -1;
+  p.kind = 'none';
   if (k) {
     k.cooldown = SKATER.releaseCooldown;
     k.charge = -1;
@@ -134,7 +137,8 @@ export function skaterActions(s: GameState, k: Skater, inp: Input, aEdge: boolea
     return;
   }
   if (s.puck.owner === k.id) {
-    if (k.charge >= 0) {
+    if (k.oneTimer > 0 && k.charge < 0 && bEdge) shoot(s, k, inp, true);
+    else if (k.charge >= 0) {
       if (inp.b) k.charge = Math.min(SHOT.chargeMax, k.charge + 1);
       else shoot(s, k, inp);
     } else if (bEdge) k.charge = 0;
@@ -147,6 +151,7 @@ export function skaterActions(s: GameState, k: Skater, inp: Input, aEdge: boolea
     k.lunge--;
     checkContacts(s, k);
   }
+  if (k.oneTimer > 0) k.oneTimer--;
 }
 
 function aimNoise(s: GameState, k: Skater): number {
@@ -156,14 +161,17 @@ function aimNoise(s: GameState, k: Skater): number {
   return Math.max(0.01, n);
 }
 
-export function shoot(s: GameState, k: Skater, inp: Input) {
+export function shoot(s: GameState, k: Skater, inp: Input, oneTimer = false) {
   const p = s.puck;
   const def = s.teams[k.team].def;
   const charge = k.charge;
-  const slap = charge >= SHOT.wristUnder;
-  let power = slap
-    ? SHOT.wrist + (SHOT.slap - SHOT.wrist) * ((charge - SHOT.wristUnder) / (SHOT.chargeMax - SHOT.wristUnder))
-    : SHOT.wrist;
+  const slap = !oneTimer && charge >= SHOT.wristUnder;
+  let power = oneTimer
+    ? SHOT.oneTimer
+    : slap
+      ? SHOT.wrist + (SHOT.slap - SHOT.wrist) * ((charge - SHOT.wristUnder) / (SHOT.chargeMax - SHOT.wristUnder))
+      : SHOT.wrist;
+  const rebound = s.frame - p.lastSaveFrame < GOALIE.reboundWindow;
   power *= 0.94 + def.shooting * 0.03;
   if (s.teams[k.team].surge > 0) power *= MOMENTUM.surgeShot;
 
@@ -192,7 +200,9 @@ export function shoot(s: GameState, k: Skater, inp: Input) {
   }
   aim += gauss(s.rng) * aimNoise(s, k) * (slap ? SHOT.slapNoiseFactor : 1);
   release(s, k, Math.cos(aim) * power + k.vx * 0.25, Math.sin(aim) * power + k.vy * 0.25, atNet);
-  s.events.push({ type: 'shot', team: k.team, power });
+  k.oneTimer = 0;
+  p.kind = s.phase === 'shootout' ? 'shootout' : oneTimer ? 'oneTimer' : rebound ? 'rebound' : slap ? 'slap' : 'wrist';
+  s.events.push({ type: 'shot', team: k.team, power, kind: p.kind, shooter: k.id });
 }
 
 // Is any opponent of `team` within `w` of the segment a→b?
@@ -242,6 +252,7 @@ export function pass(s: GameState, k: Skater, inp: Input) {
     vy = dy * SHOT.pass;
   }
   release(s, k, vx, vy, false);
+  p.passFrom = k.id;
   s.events.push({ type: 'pass', team: k.team });
 }
 

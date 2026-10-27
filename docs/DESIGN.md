@@ -27,6 +27,27 @@ tuned with the headless simulator (`npm run sim`), not guessed.
 - A goalie who catches the puck holds it briefly and then outlets it to a teammate
   (no whistle), which keeps the game flowing.
 
+## Scoring
+
+The first build tuned goals from CPU-vs-CPU games only, where most goals came from rebounds and
+scrambles. A person playing it saw clean shots stopped again and again with no clue why, and
+finished 0-0. Scoring now rests on one idea the player can see and learn: **goalies stop what
+hits them, so make them move.**
+
+- A goalie stops a shot that comes straight into the body almost every time. The further the
+  puck's path passes from the goalie's centre, the better its chance, steeply (squared) toward the
+  edge of reach; outside reach it goes in.
+- A goalie needs a moment to read a shot (10 frames minus the goalie rating) and then slides onto
+  its line, so long shots give time to get set and close ones do not.
+- A goalie still sliding across when the shot arrives is easier to beat, as is one screened by
+  bodies in front, one facing a rebound, or one facing a **one-timer**.
+- **One-timer:** press shoot as a teammate's pass arrives (up to 8 frames early, or within 10
+  frames of taking it). The shot leaves at once and harder than a wrist shot.
+- A hard shot only stops on a skater it hits square on; sticks don't catch it. Before this,
+  defenders marking in the shooting lane caught more than half of all one-timers.
+- Every goal is called out by type (one-timer, rebound, slap shot, wrist shot, scramble), a human's
+  one-timer gets a callout even when it is saved, and intermissions show a scoring tip.
+
 ## Fights ("scraps")
 
 A scrap can start when a hard body check lands; the odds grow with the square of the heat between
@@ -83,19 +104,27 @@ The same split the remake projects use, minus the oracle:
   and fight rates the constants are tuned against.
 - `test/` checks the physics, the rules, the fight system, the shootout and determinism.
 
-## Tuning targets (CPU vs CPU, Pro level, 3-minute periods)
+## Tuning targets (Pro level, 3-minute periods)
+
+`npm run sim -- <games>` plays CPU against CPU. `npm run sim -- <games> 1 180 --human <bot>` puts a
+scripted player from `tools/bots.ts` on team 0 through the human controls: `rusher` carries the puck
+to the slot and shoots, `playmaker` passes across and one-times. The bots handle the puck far better
+than a person, so their totals run high; what matters is that the playmaker beats the rusher.
 
 | Measure | Target |
 |---|---|
-| Goals per game (both teams) | 5 to 9 |
+| Goals per game, CPU vs CPU (both teams) | 6 to 10 |
 | Shots per team per game | 15 to 30 |
-| Save percentage | 0.75 to 0.88 |
+| Save percentage | 0.75 to 0.85 |
+| Goals per shot: wrist / one-timer / rebound | about 0.1 / 0.15 to 0.25 / 0.2 to 0.35 |
+| `playmaker` goals compared with `rusher` | clearly more |
 | Scraps per game | 0.5 to 1.5 |
 | Frozen-puck whistles per game | under 2 |
 | Games reaching a shootout | 10 to 25 percent |
 | CPU shootout attempts scored | 20 to 35 percent |
 
-Measured on 2026-10-27 over 120 games (`npm run sim 120`): 7.3 goals per game, 25.7 shots per
-team, save percentage 0.842, 1.0 scraps per game, 0.03 frozen-puck whistles, 13 percent
-shootouts; every club's win rate between 35 and 60 percent. CPU shootout attempts score about
-23 percent of the time.
+Measured on 2026-10-27. CPU vs CPU over 120 games: 9.5 goals per game (5.8 wrist, 2.0 rebound,
+1.4 one-timer), 25.9 shots per team, save percentage 0.794, goals per shot 0.09 wrist, 0.17
+one-timer, 0.20 rebound; 1.1 scraps, 0.03 whistles, 12 percent shootouts; every club's win rate
+between 38 and 65 percent. Bots over 40 games: `rusher` 9.8 goals a game to the CPU's 2.4,
+`playmaker` 14.4 to 2.8 (8.2 of them one-timers). CPU shootout attempts score 29 percent.

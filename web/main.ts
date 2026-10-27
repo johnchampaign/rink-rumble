@@ -358,7 +358,7 @@ function drawSetup() {
     drawText(ctx, 'J / Z / SPACE: PASS, OR CHECK WITHOUT PUCK', 16, 160, '#cfd8e8');
     drawText(ctx, 'K / X: TAP WRISTER, HOLD SLAPPER, OR SWITCH', 16, 172, '#cfd8e8');
   }
-  drawText(ctx, 'AIM WITH THE STICK WHEN YOU SHOOT', 16, 184, '#9fb0c8');
+  drawText(ctx, 'SCORE: PASS ACROSS, SHOOT AS IT ARRIVES (ONE-TIMER)', 16, 184, '#8fe08f');
   drawText(ctx, 'P / ESC: PAUSE    M: MUTE    ENTER: START', 16, 196, '#7a7a96');
 }
 

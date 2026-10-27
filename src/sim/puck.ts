@@ -1,5 +1,5 @@
 // The puck: riding a stick, or loose with boards, nets, goals, saves and pickups.
-import { PUCK, RINK, SKATER } from './constants.ts';
+import { PUCK, RINK, SHOT, SKATER } from './constants.ts';
 import { trySave } from './goalie.ts';
 import { boardContact, crossedGoalLine, netBoxContact, netWalls, segmentContact, type Contact } from './rink.ts';
 import { chance, range } from './rng.ts';
@@ -51,7 +51,10 @@ function tryPickup(s: GameState): boolean {
     if (p.isShot && k.team === p.shotTeam) continue; // nobody blocks a teammate's shot
     const sx = k.x + Math.cos(k.facing) * SKATER.stickReach * 0.8;
     const sy = k.y + Math.sin(k.facing) * SKATER.stickReach * 0.8;
-    const d = Math.min(Math.hypot(p.x - sx, p.y - sy), Math.hypot(p.x - k.x, p.y - k.y));
+    const body = Math.hypot(p.x - k.x, p.y - k.y);
+    const d = Math.min(Math.hypot(p.x - sx, p.y - sy), body);
+    // A hard shot beats sticks; it only stops if it hits a body square on.
+    if (p.isShot && speed > PUCK.hardToCatch && body > PUCK.blockRadius) continue;
     const reach = SKATER.pickupRadius + (speed < 2 ? 3 : 0);
     if (d < reach && d < bestD) {
       bestD = d;
@@ -60,7 +63,7 @@ function tryPickup(s: GameState): boolean {
   }
   if (!best) return false;
   if (speed > PUCK.hardToCatch) {
-    const keep = Math.max(0.25, 1 - (speed - PUCK.hardToCatch) * 0.25);
+    const keep = Math.max(0.1, 1 - (speed - PUCK.hardToCatch) * (p.isShot ? PUCK.catchHardShot : 0.25));
     if (!chance(s.rng, keep)) {
       // Blocked: the puck caroms off skates or shin pads.
       const a = Math.atan2(p.vy, p.vx) + range(s.rng, -1.2, 1.2);
@@ -72,6 +75,11 @@ function tryPickup(s: GameState): boolean {
       best.cooldown = 8;
       return false;
     }
+  }
+  // Taking a teammate's pass opens a moment for a one-timer.
+  const passer = p.passFrom >= 0 ? s.skaters[p.passFrom] : null;
+  if (passer && passer !== best && passer.team === best.team && s.frame - p.releaseFrame >= SHOT.oneTimerMinFlight) {
+    best.oneTimer = SHOT.oneTimerWindow;
   }
   p.owner = best.id;
   p.isShot = false;

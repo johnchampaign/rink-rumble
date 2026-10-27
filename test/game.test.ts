@@ -1,7 +1,8 @@
 // Whole-match behaviour: controls, rules, determinism and complete CPU games.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FPS, PENALTY, RINK } from '../src/sim/constants.ts';
+import { FPS, GOALIE, PENALTY, RINK } from '../src/sim/constants.ts';
+import { shotSaveChance } from '../src/sim/goalie.ts';
 import { setupFaceoff, step } from '../src/sim/game.ts';
 import { NO_INPUT, newGame, type GameEvent, type GameState, type Input } from '../src/sim/state.ts';
 
@@ -156,5 +157,61 @@ test('complete CPU games finish with sane numbers', () => {
     assert.notEqual(s.teams[0].score, s.teams[1].score);
     const total = s.teams[0].score + s.teams[1].score;
     assert.ok(total < 25, `${total} goals`);
+  }
+});
+
+test('pressing shoot as a pass arrives fires a one-timer', () => {
+  const s = inPlay();
+  for (const k of s.skaters) if (k.team === 1) k.benched = true;
+  givePuck(s, 0, 0, 0);
+  Object.assign(s.skaters[1], { x: 0, y: -80, vx: 0, vy: 0, facing: Math.PI / 2 });
+  Object.assign(s.skaters[2], { x: 0, y: 80, vx: 0, vy: 0 });
+  s.active[0] = 0;
+  run(s, 1, () => ({ x: 0, y: -1, a: true, b: false }));
+  // Press shoot a few frames before the receiver gets it; the press is remembered.
+  const ev: GameEvent[] = [];
+  for (let f = 0; f < 60 && !ev.some((e) => e.type === 'shot'); f++) {
+    const near = Math.hypot(s.puck.x - s.skaters[1].x, s.puck.y - s.skaters[1].y) < 20;
+    step(s, [{ x: 0, y: 0, a: false, b: near }, null]);
+    ev.push(...s.events);
+  }
+  const shot = ev.find((e) => e.type === 'shot');
+  assert.ok(shot && shot.type === 'shot' && shot.kind === 'oneTimer', `got ${JSON.stringify(shot)}`);
+  assert.equal(shot.shooter, 1);
+});
+
+test('a shot into the goalie is saved far more often than one at the edge of reach', () => {
+  const s = inPlay({ humans: [false, false] });
+  const g = s.goalies[1];
+  const side = s.teams[1].side;
+  Object.assign(g, { x: side * (RINK.goalX - 10), y: 0, vy: 0 });
+  const p = s.puck;
+  const at = (y: number) => {
+    Object.assign(p, { x: side * (RINK.goalX - 80), y, vx: side * 6, vy: 0, isShot: true, shotTeam: 0, kind: 'wrist', shotFromX: side * (RINK.goalX - 80) });
+    return shotSaveChance(s, g, 6, GOALIE.reach);
+  };
+  const centre = at(0);
+  const edge = at(12);
+  assert.ok(centre > 0.9, `centre ${centre}`);
+  assert.ok(centre - edge > 0.3, `centre ${centre} edge ${edge}`);
+  g.vy = 1.5;
+  assert.ok(at(0) < centre, 'a goalie still sliding is easier to beat');
+});
+
+test('a hard shot slips past a stick but not through a body', () => {
+  for (const [offset, blocked] of [[7, false], [0, true]] as const) {
+    const s = inPlay({ humans: [false, false] });
+    for (const k of s.skaters) k.benched = true;
+    for (const g of s.goalies) g.y = 120;
+    const d = s.skaters[3];
+    Object.assign(d, { benched: false, x: 0, y: offset, vx: 0, vy: 0, facing: Math.PI / 2, cooldown: 0 });
+    Object.assign(s.puck, { owner: -1, x: -60, y: 0, vx: 8, vy: 0, isShot: true, shotTeam: 0, kind: 'slap' });
+    let touched = false;
+    for (let f = 0; f < 20; f++) {
+      const t = s.puck.touch;
+      step(s, [null, null]);
+      if (s.puck.owner === 3 || s.puck.touch !== t) touched = true;
+    }
+    assert.equal(touched, blocked, `defender ${offset}px off the line`);
   }
 });
